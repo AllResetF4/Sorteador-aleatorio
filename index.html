@@ -1,0 +1,582 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Generador de Grupos Personalizados</title>
+  <style>
+    :root {
+      --primary: #4f46e5;
+      --primary-hover: #4338ca;
+      --bg-slate: #f8fafc;
+      --card-bg: #ffffff;
+      --text-main: #0f172a;
+      --text-muted: #64748b;
+      --border-color: #e2e8f0;
+      --danger: #ef4444;
+      --success: #10b981;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+    body { background-color: var(--bg-slate); color: var(--text-main); line-height: 1.5; padding: 20px; max-width: 1400px; margin: 0 auto; }
+
+    header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 2px solid var(--border-color); flex-wrap: wrap; gap: 12px; }
+    h1 { font-size: 1.75rem; font-weight: 800; color: var(--primary); display: flex; align-items: center; gap: 8px; }
+
+    /* Disparador Invisible */
+    .secret-trigger {
+      font-size: 1.2rem;
+      color: var(--border-color);
+      cursor: default;
+      user-select: none;
+      padding: 4px 8px;
+      transition: color 0.3s;
+    }
+
+    .btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; border-radius: 8px; font-weight: 600; font-size: 0.9rem; cursor: pointer; border: none; transition: all 0.2s; }
+    .btn-primary { background: var(--primary); color: white; }
+    .btn-secondary { background: #e0e7ff; color: var(--primary); }
+    .btn-danger { background: #fee2e2; color: var(--danger); }
+    .btn-outline { border: 1px solid var(--border-color); background: white; color: var(--text-main); }
+    .btn-outline:hover { background: #f1f5f9; }
+
+    .grid-container { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px; margin-bottom: 24px; }
+    .card { background: var(--card-bg); border-radius: 12px; border: 1px solid var(--border-color); padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+    .card-title { font-size: 1.1rem; font-weight: 700; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; }
+
+    textarea { width: 100%; height: 180px; padding: 12px; border-radius: 8px; border: 1px solid var(--border-color); font-size: 0.95rem; resize: vertical; outline: none; }
+    textarea:focus { border-color: var(--primary); }
+
+    .group-item { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
+    .group-item input[type="text"] { flex: 1; padding: 8px; border: 1px solid var(--border-color); border-radius: 6px; }
+    .group-item input[type="number"] { width: 80px; padding: 8px; border: 1px solid var(--border-color); border-radius: 6px; }
+
+    .summary-bar { background: #eef2ff; border: 1px solid #c7d2fe; padding: 12px; border-radius: 8px; margin-bottom: 16px; display: flex; justify-content: space-between; font-weight: 600; font-size: 0.9rem; flex-wrap: wrap; gap: 8px; }
+    .status-ok { color: var(--success); }
+    .status-error { color: var(--danger); }
+
+    .alert { padding: 12px; border-radius: 8px; margin-bottom: 16px; font-size: 0.9rem; display: none; }
+    .alert-danger { background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
+
+    .actions-bar { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; margin-bottom: 32px; }
+    .btn-draw { padding: 14px 32px; font-size: 1.2rem; border-radius: 50px; background: linear-gradient(135deg, #6366f1, #4f46e5); color: white; box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3); }
+    .btn-draw:hover { transform: translateY(-1px); }
+
+    /* Resultados */
+    .results-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
+    .result-card { background: white; border: 1px solid var(--border-color); border-radius: 10px; padding: 16px; min-height: 150px; }
+    .result-card.drag-over { border: 2px dashed var(--primary); background: #f5f3ff; }
+    .result-header { font-weight: 700; border-bottom: 1px solid var(--border-color); padding-bottom: 8px; margin-bottom: 12px; display: flex; justify-content: space-between; }
+
+    .member-list { list-style: none; min-height: 60px; }
+    .member-item { background: #f1f5f9; padding: 8px 12px; border-radius: 6px; margin-bottom: 6px; display: flex; justify-content: space-between; align-items: center; font-size: 0.9rem; user-select: none; color: var(--text-main); font-weight: normal; }
+    .member-item.draggable { cursor: grab; }
+
+    /* Modal Completamente Oculto */
+    .modal-backdrop { position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(15, 23, 42, 0.6); display: none; justify-content: flex-end; z-index: 1000; }
+    .modal-drawer { background: white; width: 100%; max-width: 480px; height: 100%; padding: 24px; overflow-y: auto; display: flex; flex-direction: column; gap: 20px; }
+    
+    .rule-row { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
+    .rule-row select { flex: 1; padding: 6px; border-radius: 6px; border: 1px solid var(--border-color); }
+
+    .shuffling { animation: pulse 0.15s infinite alternate; }
+    @keyframes pulse { from { opacity: 0.6; transform: scale(0.99); } to { opacity: 1; transform: scale(1); } }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>🎲 Sorteadora de Grupos</h1>
+    <div style="display: flex; align-items: center; gap: 8px;">
+      <!-- Zona secreta para toques táctiles / clic silencioso -->
+      <span class="secret-trigger" onclick="handleSecretClick()" title="Versión 1.0.0">·</span>
+      <button class="btn btn-outline" onclick="saveToLocalStorage()">💾 Guardar</button>
+      <button class="btn btn-outline" onclick="clearAllData()">🗑️ Limpiar</button>
+    </div>
+  </header>
+
+  <div id="error-alert" class="alert alert-danger"></div>
+
+  <div class="summary-bar">
+    <span>Total Personas: <strong id="total-people-count">0</strong></span>
+    <span>Capacidad Total: <strong id="total-capacity-count">0</strong></span>
+    <span>Estado: <strong id="capacity-status" class="status-ok">Sincronizado</strong></span>
+  </div>
+
+  <div class="grid-container">
+    <div class="card">
+      <div class="card-title">
+        <span>1. Lista de Personas</span>
+        <small style="font-weight: normal; color: var(--text-muted);">Una por línea</small>
+      </div>
+      <textarea id="people-input" placeholder="Juan&#10;María&#10;Pedro&#10;Ana&#10;Luis..." oninput="updateState()"></textarea>
+    </div>
+
+    <div class="card">
+      <div class="card-title">
+        <span>2. Configuración de Grupos</span>
+        <button class="btn btn-secondary" onclick="addGroup()">+ Añadir Grupo</button>
+      </div>
+      <div id="groups-list"></div>
+    </div>
+  </div>
+
+  <div class="actions-bar">
+    <button class="btn btn-draw" onclick="executeDraw()">🎲 SORTEAR</button>
+  </div>
+
+  <div id="results-section" style="display: none;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 8px;">
+      <h2>Resultados</h2>
+      <div style="display: flex; gap: 8px;">
+        <button class="btn btn-outline" onclick="copyToClipboard()">📋 Copiar</button>
+        <button class="btn btn-outline" onclick="exportTXT()">📄 Descargar TXT</button>
+        <button class="btn btn-outline" onclick="exportCSV()">📊 Descargar CSV</button>
+      </div>
+    </div>
+    <div id="results-grid" class="results-grid"></div>
+  </div>
+
+  <!-- INTERFAZ OCULTA (SOLO ACCESIBLE POR ATAJO O TRIPLE CLIC) -->
+  <div id="modal-backdrop" class="modal-backdrop" onclick="closeModalOnBackdrop(event)">
+    <div class="modal-drawer">
+      <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 12px;">
+        <h3>🔒 Panel Secreto de Reglas</h3>
+        <button class="btn btn-outline" onclick="toggleModal(false)">✕</button>
+      </div>
+
+      <!-- Personas Fijadas -->
+      <div>
+        <h4 style="margin-bottom: 8px;">Personas Fijadas</h4>
+        <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 12px;">Obliga a una persona a pertenecer a un grupo específico.</p>
+        <div id="fixed-assignments-list"></div>
+        <button class="btn btn-outline" onclick="addFixedAssignmentRow()" style="width: 100%; margin-top: 8px;">+ Fijar Persona</button>
+      </div>
+
+      <hr style="border: 0; border-top: 1px solid var(--border-color);">
+
+      <!-- Restricciones Avanzadas -->
+      <div>
+        <h4 style="margin-bottom: 8px;">Restricciones Avanzadas</h4>
+        <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 12px;">Define parejas que deben o no deben compartir grupo.</p>
+        <div id="rules-list"></div>
+        <div style="display: flex; gap: 8px; margin-top: 8px;">
+          <button class="btn btn-outline" onclick="addRuleRow('TOGETHER')" style="flex:1;">+ Deben estar juntos</button>
+          <button class="btn btn-outline" onclick="addRuleRow('APART')" style="flex:1;">+ No pueden estar juntos</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let state = {
+      people: [],
+      groups: [
+        { id: '1', name: 'Grupo Rojo', capacity: 3 },
+        { id: '2', name: 'Grupo Azul', capacity: 3 }
+      ],
+      fixedAssignments: [],
+      rules: [],
+      lastResult: null
+    };
+
+    let secretClickCount = 0;
+    let secretTimer = null;
+
+    window.onload = () => {
+      loadFromLocalStorage();
+      renderGroupsInputs();
+      updateState();
+
+      // Atajo de teclado secreto: Ctrl + Shift + X / Cmd + Shift + X
+      document.addEventListener('keydown', (e) => {
+        if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'x') {
+          e.preventDefault();
+          toggleModal(true);
+        }
+      });
+    };
+
+    function handleSecretClick() {
+      secretClickCount++;
+      clearTimeout(secretTimer);
+      if (secretClickCount >= 3) {
+        toggleModal(true);
+        secretClickCount = 0;
+      } else {
+        secretTimer = setTimeout(() => { secretClickCount = 0; }, 1000);
+      }
+    }
+
+    function toggleModal(show) {
+      document.getElementById('modal-backdrop').style.display = show ? 'flex' : 'none';
+      if (show) renderHiddenSettings();
+    }
+
+    function closeModalOnBackdrop(e) {
+      if (e.target.id === 'modal-backdrop') toggleModal(false);
+    }
+
+    function addGroup() {
+      state.groups.push({ id: Date.now().toString(), name: `Grupo ${state.groups.length + 1}`, capacity: 3 });
+      renderGroupsInputs();
+      updateState();
+    }
+
+    function removeGroup(id) {
+      if (state.groups.length <= 1) return alert('Debe existir al menos un grupo.');
+      state.groups = state.groups.filter(g => g.id !== id);
+      state.fixedAssignments = state.fixedAssignments.filter(f => f.groupId !== id);
+      renderGroupsInputs();
+      updateState();
+    }
+
+    function renderGroupsInputs() {
+      const container = document.getElementById('groups-list');
+      container.innerHTML = state.groups.map(g => `
+        <div class="group-item">
+          <input type="text" value="${escapeHtml(g.name)}" oninput="updateGroup('${g.id}', 'name', this.value)" placeholder="Nombre del grupo">
+          <input type="number" min="1" value="${g.capacity}" oninput="updateGroup('${g.id}', 'capacity', this.value)" placeholder="Cap.">
+          <button class="btn btn-danger" onclick="removeGroup('${g.id}')">✕</button>
+        </div>
+      `).join('');
+    }
+
+    function updateGroup(id, field, value) {
+      const group = state.groups.find(g => g.id === id);
+      if (group) {
+        group[field] = field === 'capacity' ? parseInt(value) || 0 : value;
+        updateState();
+      }
+    }
+
+    function updateState() {
+      const text = document.getElementById('people-input').value;
+      state.people = text.split('\n').map(p => p.trim()).filter(p => p.length > 0);
+
+      const totalPeople = state.people.length;
+      const totalCapacity = state.groups.reduce((acc, g) => acc + (g.capacity || 0), 0);
+
+      document.getElementById('total-people-count').innerText = totalPeople;
+      document.getElementById('total-capacity-count').innerText = totalCapacity;
+
+      const statusEl = document.getElementById('capacity-status');
+      if (totalPeople === totalCapacity && totalPeople > 0) {
+        statusEl.innerText = "Correcto";
+        statusEl.className = "status-ok";
+      } else {
+        statusEl.innerText = totalPeople === totalCapacity ? "Sin datos" : "Desequilibrado";
+        statusEl.className = "status-error";
+      }
+    }
+
+    function validate() {
+      const errors = [];
+      const totalPeople = state.people.length;
+      const totalCapacity = state.groups.reduce((acc, g) => acc + (g.capacity || 0), 0);
+
+      if (totalPeople === 0) errors.push("Introduce al menos una persona.");
+      if (state.groups.length === 0) errors.push("Crea al menos un grupo.");
+      
+      const duplicates = state.people.filter((item, index) => state.people.indexOf(item) !== index);
+      if (duplicates.length > 0) errors.push(`Hay nombres duplicados: ${[...new Set(duplicates)].join(', ')}.`);
+
+      if (state.groups.some(g => !g.capacity || g.capacity <= 0)) errors.push("Todos los grupos deben tener una capacidad mayor a 0.");
+      if (totalPeople !== totalCapacity) {
+        errors.push(`Hay ${totalPeople} personas, pero la capacidad total es de ${totalCapacity} plazas. Deben coincidir exactamente.`);
+      }
+
+      const fixedCounts = {};
+      state.fixedAssignments.forEach(f => {
+        if (!state.people.includes(f.person)) return;
+        fixedCounts[f.groupId] = (fixedCounts[f.groupId] || 0) + 1;
+      });
+
+      state.groups.forEach(g => {
+        if ((fixedCounts[g.id] || 0) > g.capacity) {
+          errors.push(`El grupo "${g.name}" tiene asignadas ${fixedCounts[g.id]} personas fijas pero su capacidad es de solo ${g.capacity}.`);
+        }
+      });
+
+      const alertEl = document.getElementById('error-alert');
+      if (errors.length > 0) {
+        alertEl.innerHTML = errors.map(e => `⚠️ ${e}`).join('<br>');
+        alertEl.style.display = 'block';
+        return false;
+      } else {
+        alertEl.style.display = 'none';
+        return true;
+      }
+    }
+
+    function renderHiddenSettings() {
+      const fixedContainer = document.getElementById('fixed-assignments-list');
+      fixedContainer.innerHTML = state.fixedAssignments.map((f, i) => `
+        <div class="rule-row">
+          <select onchange="updateFixedAssignment(${i}, 'person', this.value)">
+            <option value="">Persona...</option>
+            ${state.people.map(p => `<option value="${escapeHtml(p)}" ${p === f.person ? 'selected' : ''}>${escapeHtml(p)}</option>`).join('')}
+          </select>
+          <span>➔</span>
+          <select onchange="updateFixedAssignment(${i}, 'groupId', this.value)">
+            <option value="">Grupo...</option>
+            ${state.groups.map(g => `<option value="${g.id}" ${g.id === f.groupId ? 'selected' : ''}>${escapeHtml(g.name)}</option>`).join('')}
+          </select>
+          <button class="btn btn-danger" onclick="removeFixedAssignment(${i})">✕</button>
+        </div>
+      `).join('');
+
+      const rulesContainer = document.getElementById('rules-list');
+      rulesContainer.innerHTML = state.rules.map((r, i) => `
+        <div class="rule-row">
+          <select onchange="updateRule(${i}, 'p1', this.value)">
+            <option value="">Persona 1...</option>
+            ${state.people.map(p => `<option value="${escapeHtml(p)}" ${p === r.p1 ? 'selected' : ''}>${escapeHtml(p)}</option>`).join('')}
+          </select>
+          <span style="font-weight:bold;">${r.type === 'TOGETHER' ? '=' : '≠'}</span>
+          <select onchange="updateRule(${i}, 'p2', this.value)">
+            <option value="">Persona 2...</option>
+            ${state.people.map(p => `<option value="${escapeHtml(p)}" ${p === r.p2 ? 'selected' : ''}>${escapeHtml(p)}</option>`).join('')}
+          </select>
+          <button class="btn btn-danger" onclick="removeRule(${i})">✕</button>
+        </div>
+      `).join('');
+    }
+
+    function addFixedAssignmentRow() { state.fixedAssignments.push({ person: '', groupId: '' }); renderHiddenSettings(); }
+    function updateFixedAssignment(index, field, value) { state.fixedAssignments[index][field] = value; }
+    function removeFixedAssignment(index) { state.fixedAssignments.splice(index, 1); renderHiddenSettings(); }
+
+    function addRuleRow(type) { state.rules.push({ type, p1: '', p2: '' }); renderHiddenSettings(); }
+    function updateRule(index, field, value) { state.rules[index][field] = value; }
+    function removeRule(index) { state.rules.splice(index, 1); renderHiddenSettings(); }
+
+    function executeDraw() {
+      if (!validate()) return;
+
+      const resultGrid = document.getElementById('results-grid');
+      const resultsSection = document.getElementById('results-section');
+      
+      resultsSection.style.display = 'block';
+      resultGrid.classList.add('shuffling');
+
+      setTimeout(() => {
+        const distribution = runAllocationAlgorithm();
+        resultGrid.classList.remove('shuffling');
+
+        if (!distribution) {
+          alert('No se pudo encontrar una combinación válida que respete todas las reglas avanzadas.');
+          return;
+        }
+
+        state.lastResult = distribution;
+        renderResults();
+      }, 300);
+    }
+
+    function runAllocationAlgorithm() {
+      const distribution = {};
+      state.groups.forEach(g => distribution[g.id] = []);
+
+      const assignedPeople = new Set();
+      state.fixedAssignments.forEach(f => {
+        if (f.person && f.groupId && state.people.includes(f.person)) {
+          if (distribution[f.groupId]) {
+            distribution[f.groupId].push(f.person);
+            assignedPeople.add(f.person);
+          }
+        }
+      });
+
+      let unassigned = state.people.filter(p => !assignedPeople.has(p));
+      for (let i = unassigned.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [unassigned[i], unassigned[j]] = [unassigned[j], unassigned[i]];
+      }
+
+      const success = solveBacktracking(0, unassigned, distribution);
+      return success ? distribution : null;
+    }
+
+    function solveBacktracking(index, unassignedList, distribution) {
+      if (index >= unassignedList.length) return true;
+
+      const person = unassignedList[index];
+
+      for (let group of state.groups) {
+        const currentMembers = distribution[group.id];
+
+        if (currentMembers.length < group.capacity) {
+          if (isValidPlacement(person, currentMembers)) {
+            currentMembers.push(person);
+            if (solveBacktracking(index + 1, unassignedList, distribution)) return true;
+            currentMembers.pop();
+          }
+        }
+      }
+      return false;
+    }
+
+    function isValidPlacement(person, groupMembers) {
+      for (let rule of state.rules) {
+        if (!rule.p1 || !rule.p2) continue;
+        if (rule.type === 'APART') {
+          if ((rule.p1 === person && groupMembers.includes(rule.p2)) ||
+              (rule.p2 === person && groupMembers.includes(rule.p1))) {
+            return false;
+          }
+        }
+      }
+      return true;
+    }
+
+    function renderResults() {
+      const grid = document.getElementById('results-grid');
+      grid.innerHTML = '';
+
+      state.groups.forEach(group => {
+        const members = state.lastResult[group.id] || [];
+        const isFull = members.length >= group.capacity;
+
+        const card = document.createElement('div');
+        card.className = 'result-card';
+        card.dataset.groupid = group.id;
+
+        card.addEventListener('dragover', e => { e.preventDefault(); card.classList.add('drag-over'); });
+        card.addEventListener('dragleave', () => card.classList.remove('drag-over'));
+        card.addEventListener('drop', e => handleDrop(e, group.id));
+
+        card.innerHTML = `
+          <div class="result-header">
+            <span>${escapeHtml(group.name)}</span>
+            <small style="color: ${isFull ? 'var(--text-muted)' : 'var(--danger)'}">${members.length}/${group.capacity}</small>
+          </div>
+          <ul class="member-list">
+            ${members.map(p => {
+              const isFixed = state.fixedAssignments.some(f => f.person === p && f.groupId === group.id);
+              return `
+                <li class="member-item ${!isFixed ? 'draggable' : ''}" 
+                    draggable="${!isFixed}" 
+                    ondragstart="handleDragStart(event, '${escapeHtml(p)}', '${group.id}')">
+                  <span>${escapeHtml(p)}</span>
+                </li>
+              `;
+            }).join('')}
+          </ul>
+        `;
+        grid.appendChild(card);
+      });
+    }
+
+    let draggedData = null;
+
+    function handleDragStart(e, person, sourceGroupId) {
+      draggedData = { person, sourceGroupId };
+      e.dataTransfer.setData('text/plain', JSON.stringify(draggedData));
+    }
+
+    function handleDrop(e, targetGroupId) {
+      e.preventDefault();
+      document.querySelectorAll('.result-card').forEach(c => c.classList.remove('drag-over'));
+
+      if (!draggedData) return;
+      const { person, sourceGroupId } = draggedData;
+
+      if (sourceGroupId === targetGroupId) return;
+
+      const targetGroup = state.groups.find(g => g.id === targetGroupId);
+      const currentTargetMembers = state.lastResult[targetGroupId] || [];
+
+      if (currentTargetMembers.length >= targetGroup.capacity) {
+        alert(`El grupo "${targetGroup.name}" ya está lleno.`);
+        return;
+      }
+
+      state.lastResult[sourceGroupId] = state.lastResult[sourceGroupId].filter(p => p !== person);
+      state.lastResult[targetGroupId].push(person);
+
+      renderResults();
+    }
+
+    function saveToLocalStorage() {
+      localStorage.setItem('sorteo_app_state', JSON.stringify({
+        people: state.people,
+        groups: state.groups,
+        fixedAssignments: state.fixedAssignments,
+        rules: state.rules
+      }));
+      alert('Configuración guardada en el navegador.');
+    }
+
+    function loadFromLocalStorage() {
+      const saved = localStorage.getItem('sorteo_app_state');
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          state.people = parsed.people || [];
+          state.groups = parsed.groups || [];
+          state.fixedAssignments = parsed.fixedAssignments || [];
+          state.rules = parsed.rules || [];
+
+          document.getElementById('people-input').value = state.people.join('\n');
+        } catch(e) { console.error(e); }
+      }
+    }
+
+    function clearAllData() {
+      if (confirm('¿Deseas restablecer toda la configuración?')) {
+        localStorage.removeItem('sorteo_app_state');
+        location.reload();
+      }
+    }
+
+    function generateExportText() {
+      if (!state.lastResult) return '';
+      let text = '';
+      state.groups.forEach(g => {
+        text += `${g.name}:\n`;
+        const members = state.lastResult[g.id] || [];
+        members.forEach(m => text += `  - ${m}\n`);
+        text += '\n';
+      });
+      return text;
+    }
+
+    function copyToClipboard() {
+      const text = generateExportText();
+      if (!text) return;
+      navigator.clipboard.writeText(text).then(() => alert('¡Resultado copiado al portapapeles!'));
+    }
+
+    function exportTXT() {
+      const text = generateExportText();
+      if (!text) return;
+      const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+      downloadFile(blob, 'sorteo_grupos.txt');
+    }
+
+    function exportCSV() {
+      if (!state.lastResult) return;
+      let csv = 'Grupo,Persona\n';
+      state.groups.forEach(g => {
+        const members = state.lastResult[g.id] || [];
+        members.forEach(m => csv += `"${g.name}","${m}"\n`);
+      });
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+      downloadFile(blob, 'sorteo_grupos.csv');
+    }
+
+    function downloadFile(blob, filename) {
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = filename;
+      link.click();
+      URL.revokeObjectURL(link.href);
+    }
+
+    function escapeHtml(str) {
+      return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+    }
+  </script>
+</body>
+</html>
