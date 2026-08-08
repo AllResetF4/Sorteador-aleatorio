@@ -72,7 +72,7 @@
     .member-item { background: #f1f5f9; padding: 8px 12px; border-radius: 6px; margin-bottom: 6px; display: flex; justify-content: space-between; align-items: center; font-size: 0.9rem; user-select: none; color: var(--text-main); font-weight: normal; }
     .member-item.draggable { cursor: grab; }
 
-    /* Modal Completamente Oculto */
+    /* Modal Oculto */
     .modal-backdrop { position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(15, 23, 42, 0.6); display: none; justify-content: flex-end; z-index: 1000; }
     .modal-drawer { background: white; width: 100%; max-width: 480px; height: 100%; padding: 24px; overflow-y: auto; display: flex; flex-direction: column; gap: 20px; }
     
@@ -88,8 +88,7 @@
   <header>
     <h1>🎲 Sorteadora de Grupos</h1>
     <div style="display: flex; align-items: center; gap: 8px;">
-      <!-- Zona secreta para toques táctiles / clic silencioso -->
-      <span class="secret-trigger" onclick="handleSecretClick()" title="Versión 1.0.0">·</span>
+      <span class="secret-trigger" onclick="handleSecretClick()" title="Versión 1.0.1">·</span>
       <button class="btn btn-outline" onclick="saveToLocalStorage()">💾 Guardar</button>
       <button class="btn btn-outline" onclick="clearAllData()">🗑️ Limpiar</button>
     </div>
@@ -137,7 +136,7 @@
     <div id="results-grid" class="results-grid"></div>
   </div>
 
-  <!-- INTERFAZ OCULTA (SOLO ACCESIBLE POR ATAJO O TRIPLE CLIC) -->
+  <!-- INTERFAZ OCULTA -->
   <div id="modal-backdrop" class="modal-backdrop" onclick="closeModalOnBackdrop(event)">
     <div class="modal-drawer">
       <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 12px;">
@@ -188,7 +187,6 @@
       renderGroupsInputs();
       updateState();
 
-      // Atajo de teclado secreto: Ctrl + Shift + X / Cmd + Shift + X
       document.addEventListener('keydown', (e) => {
         if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'x') {
           e.preventDefault();
@@ -389,25 +387,47 @@
       });
 
       let unassigned = state.people.filter(p => !assignedPeople.has(p));
+      
+      // Mezclar aleatoriamente
       for (let i = unassigned.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
         [unassigned[i], unassigned[j]] = [unassigned[j], unassigned[i]];
       }
+
+      // Reordenar unassigned para procesar primero a quienes tienen reglas 'TOGETHER'
+      const togetherPeople = new Set();
+      state.rules.forEach(r => {
+        if (r.type === 'TOGETHER' && r.p1 && r.p2) {
+          togetherPeople.add(r.p1);
+          togetherPeople.add(r.p2);
+        }
+      });
+
+      unassigned.sort((a, b) => {
+        const aHas = togetherPeople.has(a) ? 1 : 0;
+        const bHas = togetherPeople.has(b) ? 1 : 0;
+        return bHas - aHas;
+      });
 
       const success = solveBacktracking(0, unassigned, distribution);
       return success ? distribution : null;
     }
 
     function solveBacktracking(index, unassignedList, distribution) {
-      if (index >= unassignedList.length) return true;
+      if (index >= unassignedList.length) {
+        return checkAllTogetherRules(distribution);
+      }
 
       const person = unassignedList[index];
 
-      for (let group of state.groups) {
+      // Barajar orden de grupos para mantener aleatoriedad entre llamadas
+      const shuffledGroups = [...state.groups].sort(() => Math.random() - 0.5);
+
+      for (let group of shuffledGroups) {
         const currentMembers = distribution[group.id];
 
         if (currentMembers.length < group.capacity) {
-          if (isValidPlacement(person, currentMembers)) {
+          if (isValidPlacement(person, group, currentMembers, distribution)) {
             currentMembers.push(person);
             if (solveBacktracking(index + 1, unassignedList, distribution)) return true;
             currentMembers.pop();
@@ -417,14 +437,48 @@
       return false;
     }
 
-    function isValidPlacement(person, groupMembers) {
+    function isValidPlacement(person, group, groupMembers, distribution) {
       for (let rule of state.rules) {
         if (!rule.p1 || !rule.p2) continue;
+
+        // Regla: NO PUEDEN ESTAR JUNTOS
         if (rule.type === 'APART') {
           if ((rule.p1 === person && groupMembers.includes(rule.p2)) ||
               (rule.p2 === person && groupMembers.includes(rule.p1))) {
             return false;
           }
+        }
+
+        // Regla: DEBEN ESTAR JUNTOS
+        if (rule.type === 'TOGETHER') {
+          const partner = rule.p1 === person ? rule.p2 : (rule.p2 === person ? rule.p1 : null);
+          if (partner) {
+            let partnerGroupId = null;
+            for (let gId in distribution) {
+              if (distribution[gId].includes(partner)) {
+                partnerGroupId = gId;
+                break;
+              }
+            }
+            // Si el compañero ya está en otro grupo diferente, esta posición no es válida
+            if (partnerGroupId && partnerGroupId !== group.id) {
+              return false;
+            }
+          }
+        }
+      }
+      return true;
+    }
+
+    function checkAllTogetherRules(distribution) {
+      for (let rule of state.rules) {
+        if (rule.type === 'TOGETHER' && rule.p1 && rule.p2) {
+          let g1 = null, g2 = null;
+          for (let gId in distribution) {
+            if (distribution[gId].includes(rule.p1)) g1 = gId;
+            if (distribution[gId].includes(rule.p2)) g2 = gId;
+          }
+          if (g1 !== g2 || !g1) return false;
         }
       }
       return true;
